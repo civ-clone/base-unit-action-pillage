@@ -1,8 +1,3 @@
-import { Moved, IMovedRegistry } from '@civ-clone/core-unit/Rules/Moved';
-import {
-  MovementCost,
-  IMovementCostRegistry,
-} from '@civ-clone/core-unit/Rules/MovementCost';
 import {
   RuleRegistry,
   instance as ruleRegistryInstance,
@@ -16,6 +11,8 @@ import {
   instance as turnInstance,
 } from '@civ-clone/core-turn-based-game/Turn';
 import DelayedAction from '@civ-clone/core-unit/DelayedAction';
+import Moved from '@civ-clone/core-unit/Rules/Moved';
+import MovementCost from '@civ-clone/core-unit/Rules/MovementCost';
 import Tile from '@civ-clone/core-world/Tile';
 import Unit from '@civ-clone/core-unit/Unit';
 
@@ -36,9 +33,7 @@ export class Pillage extends DelayedAction {
   }
 
   perform() {
-    const [
-      moveCost,
-    ]: number[] = (this.ruleRegistry() as IMovementCostRegistry)
+    const [moveCost]: number[] = this.ruleRegistry()
       .process(MovementCost, this.unit(), this)
       .sort((a: number, b: number): number => b - a);
 
@@ -52,7 +47,7 @@ export class Pillage extends DelayedAction {
       this.#tileImprovementRegistry.unregister(improvement);
     });
 
-    (this.ruleRegistry() as IMovedRegistry).process(Moved, this.unit(), this);
+    this.ruleRegistry().process(Moved, this.unit(), this);
   }
 }
 

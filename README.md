@@ -1,4 +1,3 @@
 # base-unit-action-pillage
 
-This is a template repo.
-
+This package provides the `Pillage` `Action` for `Unit`s.
