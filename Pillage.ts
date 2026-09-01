@@ -17,7 +17,7 @@ import Tile from '@civ-clone/core-world/Tile';
 import Unit from '@civ-clone/core-unit/Unit';
 
 export class Pillage extends DelayedAction {
-  #tileImprovementRegistry: TileImprovementRegistry;
+  private _tileImprovementRegistry: TileImprovementRegistry;
 
   constructor(
     from: Tile,
@@ -29,7 +29,7 @@ export class Pillage extends DelayedAction {
   ) {
     super(from, to, unit, ruleRegistry, turn);
 
-    this.#tileImprovementRegistry = tileImprovementRegistry;
+    this._tileImprovementRegistry = tileImprovementRegistry;
   }
 
   perform() {
@@ -40,11 +40,11 @@ export class Pillage extends DelayedAction {
     super.perform(moveCost, () => {
       // TODO: should this prioritise Fortress > Mine > Irrigation > Railroad > Road?
       //  use a Rule
-      const [improvement] = this.#tileImprovementRegistry.getByTile(
+      const [improvement] = this._tileImprovementRegistry.getByTile(
         this.from()
       );
 
-      this.#tileImprovementRegistry.unregister(improvement);
+      this._tileImprovementRegistry.unregister(improvement);
     });
 
     this.ruleRegistry().process(Moved, this.unit(), this);
