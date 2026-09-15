@@ -45,6 +45,32 @@ export class Pillage extends DelayedAction {
 
     this.ruleRegistry().process(Moved, this.unit(), this);
   }
+
+  /**
+   * What finishing does, against the registries this action was constructed
+   * with.
+   *
+   * This was the closure passed to `perform`, bound to `this`. Converting it
+   * to a `PendingEffect` handler first moved it to module scope, where `this`
+   * is gone, and the registries became `…Instance` singletons — invisible in
+   * the game, which uses the singletons, and wrong everywhere else. A method
+   * keeps the original body — `this` read as `action` — and
+   * `registerDelayedAction` hands the handler the action that was performed,
+   * so this runs on that one.
+   *
+   * Static, because an instance method would not compile: a new public member
+   * makes this class unassignable to `Action` (`DataObject._keys:
+   * (keyof this)[]`), and it is passed as one to `MovementCost` and `Moved`.
+   * A static method of the class may still read its instances' private
+   * fields, and does not change `keyof this`.
+   */
+  static complete(action: Pillage): void {
+    const [improvement] = action._tileImprovementRegistry.getByTile(
+      action.from()
+    );
+
+    action._tileImprovementRegistry.unregister(improvement);
+  }
 }
 
 // Registered here rather than passed to `perform` as a closure: a closure
@@ -64,15 +90,7 @@ registerDelayedAction({
   BusyRule: Pillaging,
   handler: COMPLETE,
   action: (unit: Unit) => new Pillage(unit.tile(), unit.tile(), unit),
-  complete: (unit: Unit) => {
-    // TODO: should this prioritise Fortress > Mine > Irrigation > Railroad > Road?
-    //  use a Rule
-    const [improvement] = tileImprovementRegistryInstance.getByTile(
-      unit.tile()
-    );
-
-    tileImprovementRegistryInstance.unregister(improvement);
-  },
+  complete: (unit, pendingEffect, action) => Pillage.complete(action),
 });
 
 export default Pillage;

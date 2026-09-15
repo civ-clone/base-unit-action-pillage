@@ -22,6 +22,28 @@ class Pillage extends DelayedAction_1.default {
         super.perform(moveCost || 0, exports.COMPLETE, Pillaging_1.default);
         this.ruleRegistry().process(Moved_1.default, this.unit(), this);
     }
+    /**
+     * What finishing does, against the registries this action was constructed
+     * with.
+     *
+     * This was the closure passed to `perform`, bound to `this`. Converting it
+     * to a `PendingEffect` handler first moved it to module scope, where `this`
+     * is gone, and the registries became `…Instance` singletons — invisible in
+     * the game, which uses the singletons, and wrong everywhere else. A method
+     * keeps the original body — `this` read as `action` — and
+     * `registerDelayedAction` hands the handler the action that was performed,
+     * so this runs on that one.
+     *
+     * Static, because an instance method would not compile: a new public member
+     * makes this class unassignable to `Action` (`DataObject._keys:
+     * (keyof this)[]`), and it is passed as one to `MovementCost` and `Moved`.
+     * A static method of the class may still read its instances' private
+     * fields, and does not change `keyof this`.
+     */
+    static complete(action) {
+        const [improvement] = action._tileImprovementRegistry.getByTile(action.from());
+        action._tileImprovementRegistry.unregister(improvement);
+    }
 }
 exports.Pillage = Pillage;
 // Registered here rather than passed to `perform` as a closure: a closure
@@ -41,12 +63,7 @@ exports.Pillage = Pillage;
     BusyRule: Pillaging_1.default,
     handler: exports.COMPLETE,
     action: (unit) => new Pillage(unit.tile(), unit.tile(), unit),
-    complete: (unit) => {
-        // TODO: should this prioritise Fortress > Mine > Irrigation > Railroad > Road?
-        //  use a Rule
-        const [improvement] = TileImprovementRegistry_1.instance.getByTile(unit.tile());
-        TileImprovementRegistry_1.instance.unregister(improvement);
-    },
+    complete: (unit, pendingEffect, action) => Pillage.complete(action),
 });
 exports.default = Pillage;
 //# sourceMappingURL=Pillage.js.map
