@@ -7,6 +7,7 @@ const Turn_1 = require("@civ-clone/core-turn-based-game/Turn");
 const DelayedAction_1 = require("@civ-clone/core-unit/DelayedAction");
 const Moved_1 = require("@civ-clone/core-unit/Rules/Moved");
 const MovementCost_1 = require("@civ-clone/core-unit/Rules/MovementCost");
+const Pillaged_1 = require("@civ-clone/core-tile-improvement/Rules/Pillaged");
 const Pillaging_1 = require("./Rules/Pillaging");
 const registerDelayedAction_1 = require("@civ-clone/core-unit/registerDelayedAction");
 exports.COMPLETE = 'base-unit-action-pillage:complete';
@@ -42,7 +43,12 @@ class Pillage extends DelayedAction_1.default {
      */
     static complete(action) {
         const [improvement] = action._tileImprovementRegistry.getByTile(action.from());
-        action._tileImprovementRegistry.unregister(improvement);
+        if (!improvement) {
+            return;
+        }
+        // Through the `Pillaged` rules, as building one goes through `Built`, so the ruleset takes the improvement off
+        //  the tile and refreshes the square's yields (civ-clone/web-renderer#413).
+        action.ruleRegistry().process(Pillaged_1.default, action.from(), improvement);
     }
 }
 exports.Pillage = Pillage;
