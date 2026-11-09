@@ -13,6 +13,7 @@ import {
 import DelayedAction from '@civ-clone/core-unit/DelayedAction';
 import Moved from '@civ-clone/core-unit/Rules/Moved';
 import MovementCost from '@civ-clone/core-unit/Rules/MovementCost';
+import Pillaged from '@civ-clone/core-tile-improvement/Rules/Pillaged';
 import Pillaging from './Rules/Pillaging';
 import Tile from '@civ-clone/core-world/Tile';
 import Unit from '@civ-clone/core-unit/Unit';
@@ -69,7 +70,13 @@ export class Pillage extends DelayedAction {
       action.from()
     );
 
-    action._tileImprovementRegistry.unregister(improvement);
+    if (!improvement) {
+      return;
+    }
+
+    // Through the `Pillaged` rules, as building one goes through `Built`, so the ruleset takes the improvement off
+    //  the tile and refreshes the square's yields (civ-clone/web-renderer#413).
+    action.ruleRegistry().process(Pillaged, action.from(), improvement);
   }
 }
 
