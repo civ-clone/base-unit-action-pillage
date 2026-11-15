@@ -1,4 +1,9 @@
 import {
+  PendingEffect,
+  PendingEffectRegistry,
+  instance as pendingEffectRegistryInstance,
+} from '@civ-clone/core-pending-effect';
+import {
   RuleRegistry,
   instance as ruleRegistryInstance,
 } from '@civ-clone/core-rule/RuleRegistry';
@@ -14,14 +19,22 @@ import DelayedAction from '@civ-clone/core-unit/DelayedAction';
 import Moved from '@civ-clone/core-unit/Rules/Moved';
 import MovementCost from '@civ-clone/core-unit/Rules/MovementCost';
 import Pillaged from '@civ-clone/core-tile-improvement/Rules/Pillaged';
+import PillageTarget from './Rules/PillageTarget';
 import Pillaging from './Rules/Pillaging';
 import Tile from '@civ-clone/core-world/Tile';
+import TileImprovement from '@civ-clone/core-tile-improvement/TileImprovement';
 import Unit from '@civ-clone/core-unit/Unit';
 import registerDelayedAction from '@civ-clone/core-unit/registerDelayedAction';
+import { typeNameOf } from '@civ-clone/core-data-object/DataObject';
 
 export const COMPLETE = 'base-unit-action-pillage:complete';
 
+// The key of a chosen target in the action's `PendingEffect` data: the improvement's type name (`typeNameOf`, the name
+//  a save and the client know it by).
+export const TARGET = 'target';
+
 export class Pillage extends DelayedAction {
+  private _pendingEffectRegistry: PendingEffectRegistry;
   private _tileImprovementRegistry: TileImprovementRegistry;
 
   constructor(
@@ -30,19 +43,49 @@ export class Pillage extends DelayedAction {
     unit: Unit,
     ruleRegistry: RuleRegistry = ruleRegistryInstance,
     tileImprovementRegistry: TileImprovementRegistry = tileImprovementRegistryInstance,
-    turn: Turn = turnInstance
+    turn: Turn = turnInstance,
+    pendingEffects: PendingEffectRegistry = pendingEffectRegistryInstance
   ) {
-    super(from, to, unit, ruleRegistry, turn);
+    super(from, to, unit, ruleRegistry, turn, pendingEffects);
 
+    this._pendingEffectRegistry = pendingEffects;
     this._tileImprovementRegistry = tileImprovementRegistry;
   }
 
-  perform() {
+  /**
+   * Starts pillaging. `target`, when given, is the improvement the player chose (or its type name): it is recorded in
+   *  the action's `PendingEffect` data, so it survives a save, and when the work completes it is the only candidate the
+   *  `PillageTarget` rules are offered. With no `PillageTarget` answer, the choice is pillaged if it is still on the tile.
+   *  Nothing is recorded when it isn't given.
+   *
+   * Declared as `...args: unknown[]`, as `perform(target?: TileImprovement | string)` would not compile:
+   *  `DelayedAction.perform(turns, handler, BusyRule)` is the method this overrides.
+   */
+  perform(...args: unknown[]): void {
+    const [target] = args as [(TileImprovement | string)?];
     const [moveCost]: number[] = this.ruleRegistry()
       .process(MovementCost, this.unit(), this)
       .sort((a: number, b: number): number => b - a);
 
     super.perform(moveCost || 0, COMPLETE, Pillaging);
+
+    if (target !== undefined) {
+      const [pendingEffect] = this._pendingEffectRegistry
+        .getByTarget(this.unit())
+        .filter(
+          (candidate: PendingEffect): boolean =>
+            candidate.handler() === COMPLETE
+        )
+        .slice(-1);
+
+      pendingEffect?.setData({
+        ...pendingEffect.data(),
+        [TARGET]:
+          typeof target === 'string'
+            ? target
+            : typeNameOf(target.sourceClass()),
+      });
+    }
 
     this.ruleRegistry().process(Moved, this.unit(), this);
   }
@@ -65,12 +108,34 @@ export class Pillage extends DelayedAction {
    * A static method of the class may still read its instances' private
    * fields, and does not change `keyof this`.
    */
-  static complete(action: Pillage): void {
-    const [improvement] = action._tileImprovementRegistry.getByTile(
-      action.from()
-    );
+  static complete(action: Pillage, pendingEffect?: PendingEffect): void {
+    const candidates = action._tileImprovementRegistry.getByTile(action.from()),
+      chosen = pendingEffect?.data()[TARGET],
+      offered =
+        chosen === undefined
+          ? candidates
+          : candidates.filter(
+              (candidate: TileImprovement): boolean =>
+                typeNameOf(candidate.sourceClass()) === chosen
+            ),
+      // The `PillageTarget` rules choose (civ-clone/web-renderer#1007), from the player's choice if there was one.
+      //  With no answer, the player's choice if it is still on the tile, and otherwise the first improvement on the
+      //  tile, as before: with no choice and no such rule, nothing has changed.
+      answer = action
+        .ruleRegistry()
+        .process(PillageTarget, action.unit(), action.from(), offered)
+        .find(
+          (target: TileImprovement | null | undefined): boolean =>
+            target !== undefined
+        ),
+      improvement =
+        answer === undefined
+          ? chosen === undefined || offered.length === 0
+            ? candidates[0]
+            : offered[0]
+          : answer;
 
-    if (!improvement) {
+    if (!improvement || !candidates.includes(improvement)) {
       return;
     }
 
@@ -97,7 +162,8 @@ registerDelayedAction({
   BusyRule: Pillaging,
   handler: COMPLETE,
   action: (unit: Unit) => new Pillage(unit.tile(), unit.tile(), unit),
-  complete: (unit, pendingEffect, action) => Pillage.complete(action),
+  complete: (unit, pendingEffect, action) =>
+    Pillage.complete(action, pendingEffect),
 });
 
 export default Pillage;
