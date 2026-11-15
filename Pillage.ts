@@ -55,8 +55,8 @@ export class Pillage extends DelayedAction {
   /**
    * Starts pillaging. `target`, when given, is the improvement the player chose (or its type name): it is recorded in
    *  the action's `PendingEffect` data, so it survives a save, and when the work completes it is the only candidate the
-   *  `PillageTarget` rules are offered. Without a `PillageTarget` rule it is ignored, and nothing is recorded when it
-   *  isn't given.
+   *  `PillageTarget` rules are offered. With no `PillageTarget` answer, the choice is pillaged if it is still on the tile.
+   *  Nothing is recorded when it isn't given.
    *
    * Declared as `...args: unknown[]`, as `perform(target?: TileImprovement | string)` would not compile:
    *  `DelayedAction.perform(turns, handler, BusyRule)` is the method this overrides.
@@ -111,26 +111,29 @@ export class Pillage extends DelayedAction {
   static complete(action: Pillage, pendingEffect?: PendingEffect): void {
     const candidates = action._tileImprovementRegistry.getByTile(action.from()),
       chosen = pendingEffect?.data()[TARGET],
+      offered =
+        chosen === undefined
+          ? candidates
+          : candidates.filter(
+              (candidate: TileImprovement): boolean =>
+                typeNameOf(candidate.sourceClass()) === chosen
+            ),
       // The `PillageTarget` rules choose (civ-clone/web-renderer#1007), from the player's choice if there was one.
-      //  With no answer, the first improvement on the tile, as before: a ruleset with no such rule is unchanged.
+      //  With no answer, the player's choice if it is still on the tile, and otherwise the first improvement on the
+      //  tile, as before: with no choice and no such rule, nothing has changed.
       answer = action
         .ruleRegistry()
-        .process(
-          PillageTarget,
-          action.unit(),
-          action.from(),
-          chosen === undefined
-            ? candidates
-            : candidates.filter(
-                (candidate: TileImprovement): boolean =>
-                  typeNameOf(candidate.sourceClass()) === chosen
-              )
-        )
+        .process(PillageTarget, action.unit(), action.from(), offered)
         .find(
           (target: TileImprovement | null | undefined): boolean =>
             target !== undefined
         ),
-      improvement = answer === undefined ? candidates[0] : answer;
+      improvement =
+        answer === undefined
+          ? chosen === undefined || offered.length === 0
+            ? candidates[0]
+            : offered[0]
+          : answer;
 
     if (!improvement || !candidates.includes(improvement)) {
       return;

@@ -103,13 +103,17 @@ describe('Pillage with `PillageTarget`', (): void => {
       expect(pendingEffect.data()).to.deep.equal({ endTurn: '3' });
     });
 
-    it('ignores a chosen target', (): void => {
-      const { build, pillage, pillaged } = setUp(),
-        [road] = build(Road, Mine);
+    it("pillages the player's choice when it is on the tile, and the first improvement when it isn't", (): void => {
+      const chose = setUp(),
+        gone = setUp(),
+        [, mine] = chose.build(Road, Mine),
+        [road] = gone.build(Road);
 
-      pillage('Mine');
+      chose.pillage('Mine');
+      gone.pillage('Mine');
 
-      expect(pillaged).to.deep.equal([road]);
+      expect(chose.pillaged).to.deep.equal([mine]);
+      expect(gone.pillaged).to.deep.equal([road]);
     });
 
     it('pillages the first improvement when every `PillageTarget` rule declines', (): void => {
@@ -123,6 +127,19 @@ describe('Pillage with `PillageTarget`', (): void => {
       pillage();
 
       expect(pillaged).to.deep.equal([pollution]);
+    });
+
+    it("pillages the player's choice, not the first improvement, when every `PillageTarget` rule declines", (): void => {
+      const { build, pillage, pillaged, ruleRegistry } = setUp(),
+        [, road] = build(Pollution, Road);
+
+      ruleRegistry.register(
+        new PillageTarget(new Effect((): undefined => undefined))
+      );
+
+      pillage('Road');
+
+      expect(pillaged).to.deep.equal([road]);
     });
   });
 
