@@ -1,3 +1,4 @@
+import { BusyContext } from '@civ-clone/core-unit/BusyRegistry';
 import {
   PendingEffect,
   PendingEffectRegistry,
@@ -161,7 +162,20 @@ export class Pillage extends DelayedAction {
 registerDelayedAction({
   BusyRule: Pillaging,
   handler: COMPLETE,
-  action: (unit: Unit) => new Pillage(unit.tile(), unit.tile(), unit),
+  // Built from the game the unit is loaded into, so finishing after a load writes where that game looks
+  //  (civ-clone/web-renderer#248).
+  action: (unit: Unit, context: BusyContext) =>
+    new Pillage(
+      unit.tile(),
+      unit.tile(),
+      unit,
+      context.rules,
+      (
+        context as { tileImprovements?: TileImprovementRegistry }
+      ).tileImprovements,
+      context.turn,
+      context.pendingEffects
+    ),
   complete: (unit, pendingEffect, action) =>
     Pillage.complete(action, pendingEffect),
 });
