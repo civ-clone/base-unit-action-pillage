@@ -110,7 +110,9 @@ exports.Pillage = Pillage;
 (0, registerDelayedAction_1.default)({
     BusyRule: Pillaging_1.default,
     handler: exports.COMPLETE,
-    action: (unit) => new Pillage(unit.tile(), unit.tile(), unit),
+    // Built from the game the unit is loaded into, so finishing after a load writes where that game looks
+    //  (civ-clone/web-renderer#248).
+    action: (unit, context) => new Pillage(unit.tile(), unit.tile(), unit, context.rules, context.tileImprovements, context.turn, context.pendingEffects),
     complete: (unit, pendingEffect, action) => Pillage.complete(action, pendingEffect),
 });
 exports.default = Pillage;
